@@ -1,40 +1,22 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# ### Implementation of gaussian mixture model (aka mixture of gaussians) 
-
-# In[1]:
-
+''' 
+Implementation of gaussian mixture model (aka mixture of gaussians) 
+'''
 
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import pairwise_distances_argmin
 from scipy.stats import multivariate_normal as mvn
 
+NClust = int(input("How many clusters do you want to fit? "));
 
-# In[2]:
+dataFname = 'isodistdata.npy'
+X = np.load('../'+dataFname)
 
-
-NClust = 3;
-
-
-# In[4]:
-
-
-dataFname = 'foo.npy'
-X = np.load(dataFname)
-
-
-# In[5]:
-
-
+plt.figure(0)
 plt.scatter(X[:,0], X[:,1])
 plt.axis('square');
 
-
-# In[6]:
-
-
+# +
 '''kmeans to have initial means'''
 def kmeans(X,NClust,NIters=10):
     i = np.random.permutation(X.shape[0])[:NClust]
@@ -45,10 +27,6 @@ def kmeans(X,NClust,NIters=10):
                                 for i in range(NClust)])
         centers = new_centers
     return centers,labels
-
-
-# In[25]:
-
 
 def initParams(X,NClust):
     NDim            = X.shape[1]
@@ -65,10 +43,6 @@ def initParams(X,NClust):
                              np.squeeze(X[ix,:] - mu[lb,:])) / NEach[lb]
     return mu,cov,pi
 
-
-# In[9]:
-
-
 '''compute posterior probability that each datapoint is in each cluster, 
 i.e. the responsibilities'''
 def eStep(X,mu,cov,pi,NClust):
@@ -83,16 +57,6 @@ def eStep(X,mu,cov,pi,NClust):
     gamma = respb / resb_norm
     return gamma
 
-
-# In[10]:
-
-
-gamma = eStep(X,mu,cov,pi,NClust)
-
-
-# In[17]:
-
-
 def mStep(X,gamma,NClust):
     NDim = X.shape[1]
     newPi = np.mean(gamma, axis=0) #mean per cluster
@@ -106,17 +70,7 @@ def mStep(X,gamma,NClust):
         newCov[cl,:,:] = 1/np.sum(gamma,axis=0)[cl] * covRaw 
     return newPi,newMu,newCov
 
-
-# In[18]:
-
-
-pi,mu,cov = mStep(X,gamma,NClust)
-
-
-# In[19]:
-
-
-def getLoss(X,pi,mu,cov,NClust):
+def getLoss(X,pi,mu,cov,gamma,NClust):
     NData = X.shape[0]
     loss = np.zeros((NData,NClust))
     for cl in range(NClust):
@@ -127,15 +81,19 @@ def getLoss(X,pi,mu,cov,NClust):
     finalLoss = np.sum(loss)
     return finalLoss
 
-
-# In[28]:
-
-
 def fit(X,mu,pi,cov,NClust,NIters):
-    for run in range(NIters):  
+    itr = 0
+    lastLoss = 0
+    while True:
+        itr += 1
         gamma  = eStep(X,mu,cov,pi,NClust)
         pi, mu, cov = mStep(X,gamma,NClust)
-        loss = getLoss(X, pi, mu, cov,NClust)
+        loss = getLoss(X, pi, mu, cov,gamma,NClust)
+        if itr % 10 == 0:
+            print("Iteration: %d Loss: %0.6f" %(itr, loss))      
+        if abs(loss-lastLoss) < 1e-10:
+            break
+        lastLoss = loss
     return pi,mu,cov
 
 def predict(X,mu,pi,cov,NClust):
@@ -147,19 +105,14 @@ def predict(X,mu,pi,cov,NClust):
     return labels 
 
 
-# In[26]:
-
-
+# -
 
 mu,cov,pi = initParams(X,NClust)
 pi,mu,cov = fit(X,mu,pi,cov,NClust,100)
 
-
-# In[31]:
-
-
 labels = predict(X,mu,pi,cov,NClust)
+plt.figure(1)
 plt.scatter(X[:, 0], X[:, 1], c=labels, label=labels, s=40, cmap='viridis');
 plt.axis('square');
 plt.colorbar()
-
+plt.show()
