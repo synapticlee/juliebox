@@ -1,20 +1,46 @@
-''' 
-Implementation of gaussian mixture model (aka mixture of gaussians) 
-'''
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:light
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.4'
+#       jupytext_version: 1.2.1
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
+# ###  Implementation of gaussian mixture model (aka mixture of gaussians) 
 
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import pairwise_distances_argmin
 from scipy.stats import multivariate_normal as mvn
+from seaborn import heatmap
 
-NClust = int(input("How many clusters do you want to fit? "));
+if False:
+    NClust = int(input("How many clusters do you want to fit? "));
+else:
+    NClust = 3
 
-dataFname = 'isodistdata.npy'
+mName = 'LEW_002'
+expDate = '2018-05-16'
+
+dataFname = 'isodist_%s_%s.npy' % (mName,expDate)
 X = np.load('../'+dataFname)
+if np.any(np.isnan(X)):
+    print('removing NaN rows...')
+    print(np.shape(X))
+    X = X[~np.isnan(X).any(axis=1)]
+    print(np.shape(X))
 
 plt.figure(0)
-plt.scatter(X[:,0], X[:,1])
+plt.scatter(X[:,0], X[:,1]) 
 plt.axis('square');
+plt.show()
 
 # +
 '''kmeans to have initial means'''
@@ -54,7 +80,7 @@ def eStep(X,mu,cov,pi,NClust):
         posterior[:,cl] = likelihood*prior 
     respb = posterior 
     resb_norm = np.sum(respb, axis=1)[:,np.newaxis]
-    gamma = respb / resb_norm
+    gamma = respb / resb_norm #normalize to make it a real pdf (sums to 1)
     return gamma
 
 def mStep(X,gamma,NClust):
@@ -63,6 +89,7 @@ def mStep(X,gamma,NClust):
     newCov = np.zeros((NClust,NDim,NDim))
     '''new centers is "weighted (by responsibility) average", returns NDim x NClust'''
     newMu = np.transpose(1/np.sum(gamma,axis=0) * np.dot(gamma.T, X).T)
+    
     for cl in range(NClust):
         meanSub = X - newMu[cl,:]
         gammaDiag = np.matrix(np.diag(gamma[:,cl]))
@@ -91,7 +118,7 @@ def fit(X,mu,pi,cov,NClust,NIters):
         loss = getLoss(X, pi, mu, cov,gamma,NClust)
         if itr % 10 == 0:
             print("Iteration: %d Loss: %0.6f" %(itr, loss))      
-        if abs(loss-lastLoss) < 1e-10:
+        if abs(loss-lastLoss) < 1e-6:
             break
         lastLoss = loss
     return pi,mu,cov
@@ -106,6 +133,25 @@ def predict(X,mu,pi,cov,NClust):
 
 
 # -
+
+from matplotlib import animation
+plt.rcParams['animation.ffmpeg_path'] = 'C:\FFmpeg\bin\ffmpeg.exe'
+def animate(itr):
+    if itr == 0:
+        mu,cov,pi = initParams(X,NClust)
+    gamma = eStep(X,mu,cov,pi,NClust)
+    #plt.figure(figsize=(30,2))
+    #heatmap(gamma.T)
+    #plt.show()
+    pi, mu, cov = mStep(X,gamma,NClust)
+    
+    labels = predict(X,mu,pi,cov,NClust)
+    ax1.clear()
+    ax1.scatter(X[:, 0], X[:, 1], c=labels, label=labels, s=40, cmap='viridis');
+    ax1.set_aspect('equal')
+fig = plt.figure()
+ax1 = fig.add_subplot(1,1,1)
+anim = animation.FuncAnimation(fig, animate, frames=1)
 
 mu,cov,pi = initParams(X,NClust)
 pi,mu,cov = fit(X,mu,pi,cov,NClust,100)
